@@ -1,0 +1,10 @@
+[Unit]
+Description=Thonkfan
+
+[Service]
+Type=exec
+ExecStart=/home/snek/.cargo/bin/thonkfan
+ExecReload=/bin/kill -HUP $MAINPID
+
+[Install]
+WantedBy=multi-user.target
