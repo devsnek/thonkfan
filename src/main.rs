@@ -4,18 +4,10 @@ use std::io::prelude::*;
 const DEFAULT_CONFIG: &str = "/etc/thonkfan.toml";
 
 #[derive(Debug, serde::Deserialize)]
-struct Curve(usize, u16, u16);
-
-impl Curve {
-    fn level(&self) -> usize {
-        self.0
-    }
-    fn low(&self) -> u16 {
-        self.1
-    }
-    fn high(&self) -> u16 {
-        self.2
-    }
+struct Curve {
+    level: usize,
+    low: u16,
+    high: u16,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -42,31 +34,25 @@ fn run(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
     let mut level_index = 0;
     let mut level = &config.curve[level_index];
 
-    write_level(config.curve[level_index].level())?;
+    write_level(config.curve[level_index].level)?;
 
     loop {
         let temp = read_temp()?;
 
-        if let Some(l) = if temp > level.high() {
+        if let Some(l) = if temp > level.high {
             level_index += 1;
             Some(&config.curve[level_index])
-        } else if temp < level.low() {
+        } else if temp < level.low {
             level_index -= 1;
             Some(&config.curve[level_index])
         } else {
             None
         } {
             level = l;
-            write_level(level.level())?;
+            write_level(level.level)?;
         }
 
-        println!(
-            "{}C {} {}-{}",
-            temp,
-            level.level(),
-            level.low(),
-            level.high()
-        );
+        println!("{}C {} {}-{}", temp, level.level, level.low, level.high,);
 
         std::thread::sleep(std::time::Duration::from_millis(5000));
     }
