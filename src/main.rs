@@ -17,13 +17,18 @@ struct Config {
     curve: Vec<Curve>,
 }
 
-fn run(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
-    let mut fan_handle = std::fs::OpenOptions::new().write(true).open(&config.fan)?;
-    let mut temp_handle = std::fs::File::open(&config.thermal)?;
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+fn run(config: &Config) -> Result<()> {
+    let mut fan_handle = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&config.fan)
+        .expect("unable to open fan handle");
+    let mut temp_handle = std::fs::File::open(&config.thermal).expect("unable to open temp handle");
 
     let mut write_level = |n: usize| fan_handle.write_all(format!("level {}", n).as_bytes());
 
-    let mut read_temp = || -> Result<u16, Box<dyn std::error::Error>> {
+    let mut read_temp = || -> Result<u16> {
         let mut contents = String::new();
         temp_handle.seek(std::io::SeekFrom::Start(0))?;
         temp_handle.read_to_string(&mut contents)?;
@@ -39,26 +44,26 @@ fn run(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
     loop {
         let temp = read_temp()?;
 
-        if let Some(l) = if temp > level.high {
-            level_index += 1;
-            Some(&config.curve[level_index])
+        if if temp > level.high {
+            level_index = level_index.saturating_add(1);
+            true
         } else if temp < level.low {
-            level_index -= 1;
-            Some(&config.curve[level_index])
+            level_index = level_index.saturating_sub(1);
+            true
         } else {
-            None
+            false
         } {
-            level = l;
+            level = &config.curve[level_index];
             write_level(level.level)?;
         }
 
         println!("{}C {} {}-{}", temp, level.level, level.low, level.high,);
 
-        std::thread::sleep(std::time::Duration::from_millis(5000));
+        std::thread::sleep(std::time::Duration::from_secs(5));
     }
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<()> {
     let matches = App::new("thonkfan")
         .arg(
             Arg::with_name("config")
