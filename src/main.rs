@@ -2,6 +2,8 @@ use clap::{App, Arg};
 use std::io::prelude::*;
 
 const DEFAULT_CONFIG: &str = "/etc/thonkfan.toml";
+const HWMON_ROOT: &str = "/sys/devices/platform/thinkpad_hwmon/hwmon/";
+const HWMON_DEVICE: &str = "temp1_input";
 
 #[derive(Debug, serde::Deserialize)]
 struct Curve {
@@ -13,7 +15,6 @@ struct Curve {
 #[derive(Debug, serde::Deserialize)]
 struct Config {
     fan: String,
-    thermal: String,
     curve: Vec<Curve>,
 }
 
@@ -24,7 +25,13 @@ fn run(config: &Config) -> Result<()> {
         .write(true)
         .open(&config.fan)
         .expect("unable to open fan handle");
-    let mut temp_handle = std::fs::File::open(&config.thermal).expect("unable to open temp handle");
+    let temp_path = std::fs::read_dir(HWMON_ROOT)?
+        .nth(0)
+        .unwrap()?
+        .path()
+        .join(HWMON_DEVICE);
+    println!("opening hwmon {:?}", temp_path);
+    let mut temp_handle = std::fs::File::open(temp_path).expect("unable to open temp handle");
 
     let mut write_level = |n: usize| fan_handle.write_all(format!("level {}", n).as_bytes());
 
