@@ -4,6 +4,7 @@ use std::io::prelude::*;
 const DEFAULT_CONFIG: &str = "/etc/thonkfan.toml";
 const HWMON_ROOT: &str = "/sys/devices/platform/thinkpad_hwmon/hwmon/";
 const HWMON_DEVICE: &str = "temp1_input";
+const DEFAULT_FAN_DEVICE: &str = "/proc/acpi/ibm/fan";
 
 #[derive(Debug, serde::Deserialize)]
 struct Curve {
@@ -14,24 +15,37 @@ struct Curve {
 
 #[derive(Debug, serde::Deserialize)]
 struct Config {
-    fan: String,
+    fan: Option<String>,
+    thermal: Option<String>,
     curve: Vec<Curve>,
 }
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 fn run(config: &Config) -> Result<()> {
-    let mut fan_handle = std::fs::OpenOptions::new()
-        .write(true)
-        .open(&config.fan)
-        .expect("unable to open fan handle");
-    let temp_path = std::fs::read_dir(HWMON_ROOT)?
-        .nth(0)
-        .unwrap()?
-        .path()
-        .join(HWMON_DEVICE);
-    println!("opening hwmon {:?}", temp_path);
-    let mut temp_handle = std::fs::File::open(temp_path).expect("unable to open temp handle");
+    let mut fan_handle = {
+        let fan_path = match config.fan {
+            Some(ref s) => s.to_string(),
+            None => DEFAULT_FAN_DEVICE.to_string(),
+        };
+        println!("opening fan {:?}", fan_path);
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(fan_path)
+            .expect("unable to open fan handle")
+    };
+    let mut temp_handle = {
+        let temp_path = match config.thermal {
+            Some(ref s) => s.into(),
+            None => std::fs::read_dir(HWMON_ROOT)?
+                .nth(0)
+                .unwrap()?
+                .path()
+                .join(HWMON_DEVICE),
+        };
+        println!("opening hwmon {:?}", temp_path);
+        std::fs::File::open(temp_path).expect("unable to open temp handle")
+    };
 
     let mut write_level = |n: usize| fan_handle.write_all(format!("level {}", n).as_bytes());
 
